@@ -1,5 +1,5 @@
 # Myapp
-#My first Try
+#My first Try and it's fun
 
 This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 1.5.0.
 
