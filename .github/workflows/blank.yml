@@ -1,17 +1,52 @@
-name: CI
+name: CI/CD with ZAP Security Scan
 
-on: [push]
+on:
+  push:
+    branches:
+      - main
 
 jobs:
-  build:
-
+  build-and-scan:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v1
-    - name: Run a one-line script
-      run: echo Hello, world!
-    - name: Run a multi-line script
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+
+    - name: Install Dependencies
+      run: npm install
+
+    - name: Start App in Background
       run: |
-        echo Add other actions to build,
-        echo test, and deploy your project.
+        npm start &
+        sleep 10  # Wartezeit, bis die App läuft
+
+    - name: Run ZAP Baseline Scan (Docker)
+      run: |
+        docker pull zaproxy/zap-stable
+        docker run --rm -v $(pwd):/zap/wrk/:rw -t zaproxy/zap-stable zap-baseline.py \
+          -t http://localhost:3000 \
+          -r zap_report.html \
+          -J zap_report.json \
+          -z "-config api.disablekey=true"
+
+    - name: Upload ZAP HTML Report
+      uses: actions/upload-artifact@v3
+      with:
+        name: zap-html-report
+        path: zap_report.html
+
+    - name: Upload ZAP JSON Report
+      uses: actions/upload-artifact@v3
+      with:
+        name: zap-json-report
+        path: zap_report.json
+
+    - name: Fail on High-Risk Alerts
+      run: |
+        cat zap_report.json | jq '.site[].alerts[] | select(.risk == "High")' && exit 1 || exit 0
